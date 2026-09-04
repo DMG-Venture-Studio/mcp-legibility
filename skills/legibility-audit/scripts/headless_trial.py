@@ -34,41 +34,36 @@ from pathlib import Path
 BLOCKED = ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "WebFetch", "WebSearch", "Task", "Agent"]
 
 
-def build_mcp_config(repo: Path, corpus: Path, server_name: str) -> dict:
-    """An MCP config attaching only the target server, pointed at an isolated corpus copy."""
+def build_mcp_config(server_path: Path, workspace: Path, name: str, env: dict) -> dict:
+    """An MCP config attaching only the target server, with the caller's env.
+
+    Env is supplied per target rather than baked in: this harness audits any MCP server, and the
+    first one it was built against is not the shape of all of them. `{workspace}` in a value is
+    expanded to the isolated temp directory, so a target that writes state writes it there.
+    """
     return {
         "mcpServers": {
-            server_name: {
+            name: {
                 "command": "uv",
-                "args": ["run", "--script", str(repo / "mcp" / "server.py")],
-                "env": {
-                    "RECRUITING_POOL_DIR": str(corpus / "pool"),
-                    "RECRUITING_BENCH_DIR": str(corpus / "profiles"),
-                    "RECRUITING_JUDGMENTS": str(corpus / "judgments.jsonl"),
-                    "RECRUITING_CONTRACT": str(repo / "contract.json"),
-                },
+                "args": ["run", "--script", str(server_path)],
+                "env": {k: v.replace("{workspace}", str(workspace)) for k, v in env.items()},
             }
         }
     }
 
 
-def seed_corpus(dest: Path, seed: Path | None) -> None:
-    """Copy a starting corpus into the trial's temp directory, or make an empty one."""
-    (dest / "pool").mkdir(parents=True, exist_ok=True)
-    (dest / "profiles").mkdir(parents=True, exist_ok=True)
-    if seed is None:
-        return
-    for sub in ("pool", "profiles"):
-        src = seed / sub
-        if src.is_dir():
-            for f in src.glob("*.json"):
-                shutil.copy2(f, dest / sub / f.name)
+def seed_workspace(dest: Path, seed: Path | None) -> None:
+    """Copy a starting state tree into the trial's temp directory. Any shape, not one domain's."""
+    dest.mkdir(parents=True, exist_ok=True)
+    if seed is not None and seed.is_dir():
+        shutil.copytree(seed, dest, dirs_exist_ok=True)
 
 
-def run_trial(repo: Path, task: str, corpus: Path, server: str, model: str, turns: int) -> dict:
+def run_trial(server_path: Path, task: str, ws: Path, server: str, model: str,
+              turns: int, env: dict) -> dict:
     """Run `claude -p` isolated to the target MCP; return the parsed result."""
-    cfg = corpus / "mcp-config.json"
-    cfg.write_text(json.dumps(build_mcp_config(repo, corpus, server)), encoding="utf-8")
+    cfg = ws / "mcp-config.json"
+    cfg.write_text(json.dumps(build_mcp_config(server_path, ws, server, env)), encoding="utf-8")
     cmd = [
         "claude", "-p", task,
         "--mcp-config", str(cfg),
@@ -86,7 +81,7 @@ def run_trial(repo: Path, task: str, corpus: Path, server: str, model: str, turn
         return {"ok": False, "stdout": proc.stdout[-4000:], "stderr": proc.stderr[-2000:]}
 
 
-def tells(result: dict, corpus: Path) -> list[str]:
+def tells(result: dict, ws: Path) -> list[str]:
     """Heuristic hints toward the five tells. HINTS, not verdicts — read the transcript.
 
     Nothing here can decide whether an agent "succeeded by accident" or "invented a fact"; those
@@ -95,15 +90,16 @@ def tells(result: dict, corpus: Path) -> list[str]:
     """
     out = []
     body = json.dumps(result.get("result", result))
-    ledger = corpus / "judgments.jsonl"
-    wrote = ledger.exists() and ledger.read_text(encoding="utf-8").strip()
-    if wrote:
-        rows = [ln for ln in ledger.read_text(encoding="utf-8").splitlines() if ln.strip()]
-        out.append(f"WROTE {len(rows)} ledger row(s). Check each against what the task asked for.")
-        for r in rows:
-            out.append(f"    {r[:220]}")
+    # Any file the target wrote into the isolated workspace, whatever the domain calls it.
+    written = sorted(
+        p for p in ws.rglob("*") if p.is_file() and p.name != "mcp-config.json"
+    )
+    if written:
+        out.append(f"WROTE OR TOUCHED {len(written)} file(s) in the workspace:")
+        for p in written[:12]:
+            out.append(f"    {p.relative_to(ws)}  ({p.stat().st_size} bytes)")
     else:
-        out.append("WROTE NOTHING to the ledger.")
+        out.append("WROTE NOTHING into the workspace.")
     for needle, note in (
         ("refused", "the surface refused at least once — was the refusal actionable?"),
         ("error", "an error surfaced — did the agent recover from it?"),
@@ -121,7 +117,10 @@ def main() -> int:
     ap.add_argument("--repo", type=Path, required=True)
     ap.add_argument("--task")
     ap.add_argument("--task-file", type=Path)
-    ap.add_argument("--seed", type=Path, help="a corpus to copy in before the trial")
+    ap.add_argument("--seed", type=Path, help="a state tree to copy in before the trial")
+    ap.add_argument("--server-path", type=Path, help="the server file (default: <repo>/mcp/server.py)")
+    ap.add_argument("--env", action="append", default=[],
+                    help="KEY=VALUE for the target server; {workspace} expands to the temp dir")
     ap.add_argument("--server", default="target")
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--max-turns", type=int, default=12)
@@ -136,8 +135,10 @@ def main() -> int:
 
     tmp = Path(tempfile.mkdtemp(prefix="legibility-trial-"))
     try:
-        seed_corpus(tmp, args.seed)
-        res = run_trial(args.repo, task, tmp, args.server, args.model, args.max_turns)
+        seed_workspace(tmp, args.seed)
+        env = dict(e.split("=", 1) for e in args.env if "=" in e)
+        server_path = args.server_path or (args.repo / "mcp" / "server.py")
+        res = run_trial(server_path, task, tmp, args.server, args.model, args.max_turns, env)
         hints = tells(res, tmp)
         if args.json:
             print(json.dumps({"result": res, "tells": hints, "corpus": str(tmp)}, indent=2))
@@ -156,7 +157,7 @@ def main() -> int:
             print("  guessed a value | stalled | succeeded by accident | invented a fact | "
                   "could not recover from an error")
         if args.keep:
-            print(f"\ncorpus kept at {tmp}")
+            print(f"\nworkspace kept at {tmp}")
         return 0
     finally:
         if not args.keep:
