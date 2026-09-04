@@ -61,9 +61,40 @@ def _decorator_kind(node: ast.AST) -> str | None:
     return None
 
 
-def _literal(node: ast.AST) -> str | None:
-    """A constant argument's value, or None when it is computed rather than written."""
-    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+def _string_constants(tree: ast.Module) -> dict[str, str]:
+    """Module-level `NAME = "..."` assignments, so a constant can be resolved by name.
+
+    A long `instructions=` block is almost always hoisted to a constant rather than written inline
+    at the call. Reading only `ast.Constant` reported those servers as having NO instructions —
+    a false negative, and the worst kind: it tells an author their fix did not land.
+    """
+    out: dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
+            if isinstance(node.value.value, str):
+                for t in node.targets:
+                    if isinstance(t, ast.Name):
+                        out[t.id] = node.value.value
+        # implicit concatenation across lines parses as a JoinedStr/BinOp-free Constant only when
+        # every part is literal; ast.unparse round-trips the rest well enough to detect presence
+        elif isinstance(node, ast.Assign) and isinstance(node.value, (ast.JoinedStr, ast.BinOp)):
+            for t in node.targets:
+                if isinstance(t, ast.Name):
+                    out[t.id] = ast.unparse(node.value)
+    return out
+
+
+def _literal(node: ast.AST, consts: dict[str, str] | None = None) -> str | None:
+    """An argument's string value — written inline, or resolved from a module-level constant."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name) and consts:
+        return consts.get(node.id)
+    # a parenthesised run of adjacent string literals folds to one Constant; anything else that
+    # is still a string expression (implicit concat with f-strings) is reported as present
+    if isinstance(node, ast.JoinedStr):
+        return ast.unparse(node)
+    return None
 
 
 def _params(fn: ast.FunctionDef) -> list[str]:
@@ -74,6 +105,7 @@ def _params(fn: ast.FunctionDef) -> list[str]:
 def read_surface(path: Path) -> Surface:
     """Parse one server file into the surface a client would see."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
+    consts = _string_constants(tree)
     surface = Surface(server_file=str(path))
     doc = ast.get_docstring(tree)
     surface.module_docstring_lines = len(doc.splitlines()) if doc else 0
@@ -82,10 +114,10 @@ def read_surface(path: Path) -> Surface:
         # the constructor: FastMCP(...)
         if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "FastMCP":
             if node.args:
-                surface.name = _literal(node.args[0])
+                surface.name = _literal(node.args[0], consts)
             for kw in node.keywords:
                 if kw.arg in ("name", "instructions", "version"):
-                    setattr(surface, kw.arg, _literal(kw.value))
+                    setattr(surface, kw.arg, _literal(kw.value, consts))
                 if kw.arg == "providers":
                     surface.providers += [ast.unparse(e) for e in getattr(kw.value, "elts", [])]
                 if kw.arg == "middleware":
