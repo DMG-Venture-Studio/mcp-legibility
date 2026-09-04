@@ -108,6 +108,19 @@ def audit_repo(repo: str) -> dict:
     connect = connect_snapshot(repo)
     inventory = repo_inventory(repo)
     findings = list(connect.get("findings", [])) + list(inventory.get("findings", []))
+    # Reconcile the halves. The inventory script cannot see the server and states reachability
+    # conditionally ("unless the server declares a skills provider"); this function CAN see both,
+    # so it resolves the condition rather than shipping two findings that read as contradicting
+    # each other. An audit tool whose own report argues with itself teaches the wrong lesson.
+    providers = (connect.get("surface") or {}).get("providers") or []
+    if any("Skills" in p for p in providers):
+        findings = [
+            f.replace(
+                "Unless the server declares a skills provider, a remote caller reads ZERO of them.",
+                "A skills provider IS declared, so a remote caller can reach them over the wire.",
+            )
+            for f in findings
+        ]
     return {
         "connect": connect.get("surface"),
         "inventory": inventory.get("inventory"),

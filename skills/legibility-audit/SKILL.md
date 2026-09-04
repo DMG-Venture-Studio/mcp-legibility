@@ -70,9 +70,10 @@ documentation it will never load.
 do, score the four lever axes and mark `Prior` **unscored**. Do not estimate it: an inspected guess
 at the one axis that requires evidence is the failure this whole plugin exists to name.
 
-    uv run --script scripts/score.py --findings <findings.json>
-
-`references/rubric.md` holds the five axes and what each level means. Write the report from
+`references/rubric.md` holds the five axes and what each level means. **Scoring is a judgement
+against described levels, not arithmetic** — there is deliberately no score.py, because a script
+that averaged five judgement calls into a number would manufacture precision the evidence does not
+have. Write the report from
 `templates/audit-report.md`, and if the connect axis scored badly, fill
 `templates/instructions-block.md` and hand it over — a finding with a paste-ready fix is acted on;
 one without is filed.
