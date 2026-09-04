@@ -13,13 +13,14 @@
     "progressive-disclosure",
     "headless"
   ],
-  "skills": [
-    "./skills/legibility-audit"
-  ],
   "mcpServers": {
     "legibility": {
       "command": "uv",
-      "args": ["run", "--script", "${CLAUDE_PLUGIN_ROOT}/mcp/server.py"]
+      "args": [
+        "run",
+        "--script",
+        "${CLAUDE_PLUGIN_ROOT}/mcp/server.py"
+      ]
     }
   }
 }

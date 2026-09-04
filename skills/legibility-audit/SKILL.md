@@ -66,6 +66,10 @@ documentation it will never load.
 
 ### 4. Score and report
 
+**Say plainly whether you ran the trial.** It spends money, so the user may decline it — and if they
+do, score the four lever axes and mark `Prior` **unscored**. Do not estimate it: an inspected guess
+at the one axis that requires evidence is the failure this whole plugin exists to name.
+
     uv run --script scripts/score.py --findings <findings.json>
 
 `references/rubric.md` holds the five axes and what each level means. Write the report from
