@@ -1,0 +1,25 @@
+{
+  "name": "mcp-legibility",
+  "version": "0.1.0",
+  "description": "Audit an MCP server and its repository for legibility on connect: what a cold agent receives, whether the errors teach, whether the workflows can be run out of order, how much progressive disclosure exists, and how much domain knowledge an agent must already have to execute correctly. Optimises for zero prior.",
+  "author": {
+    "name": "Matt Fili"
+  },
+  "keywords": [
+    "mcp",
+    "fastmcp",
+    "legibility",
+    "agent-experience",
+    "progressive-disclosure",
+    "headless"
+  ],
+  "skills": [
+    "./skills/legibility-audit"
+  ],
+  "mcpServers": {
+    "legibility": {
+      "command": "uv",
+      "args": ["run", "--script", "${CLAUDE_PLUGIN_ROOT}/mcp/server.py"]
+    }
+  }
+}
