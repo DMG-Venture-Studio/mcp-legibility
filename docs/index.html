@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp-legibility</title>
+<meta name="description" content="Audit an MCP server for legibility on connect by running a real headless agent against it. Measures how much an agent must already know to use your tools correctly.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=Geist+Mono:wght@400&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: var(--t-0); line-height: 1.55; padding-inline: clamp(16px, 5.5vw, 80px); padding-block: 24px 96px; }
+.wrap { max-width: 880px; margin-inline: auto; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; margin: 0; text-wrap: balance; }
+h1 { font-size: var(--t-4); letter-spacing: -0.03em; }
+h2 { font-size: var(--t-2); margin-top: var(--s-9); }
+h3 { font-size: var(--t-1); margin-top: var(--s-6); }
+p, li { max-width: 68ch; }
+p { margin: var(--s-4) 0 0; }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.lede { font-size: var(--t-1); line-height: 1.45; max-width: 44ch; margin-top: var(--s-5); }
+.muted { color: var(--muted); }
+nav { display: flex; gap: var(--s-5); flex-wrap: wrap; margin-top: var(--s-5); font-weight: 500; }
+nav a { text-decoration: none; }
+code, pre { font-family: var(--f-mono); font-size: 0.9em; }
+pre { background: var(--surface); padding: var(--s-4) var(--s-5); overflow-x: auto; margin: var(--s-4) 0 0; line-height: 1.5; font-size: 13.5px; }
+table { border-collapse: collapse; width: 100%; margin-top: var(--s-4); font-size: var(--t--1); }
+th, td { text-align: left; vertical-align: top; padding: var(--s-2) var(--s-3) var(--s-2) 0; border-top: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 500; }
+tr:last-child td { border-bottom: 1px solid var(--line); }
+blockquote { margin: var(--s-4) 0 0; padding-left: var(--s-4); border-left: 2px solid var(--c-black-30); color: var(--c-black-70); max-width: 68ch; }
+.score { font-family: var(--f-display); font-weight: 700; font-size: var(--t-3); letter-spacing: -0.02em; }
+.axes li { margin-top: var(--s-2); }
+.report { border: 1px solid var(--line); padding: var(--s-6); margin-top: var(--s-5); }
+.report h3:first-child { margin-top: 0; }
+.checks { list-style: none; padding: 0; }
+.checks li { padding-left: 1.6em; position: relative; }
+.checks li::before { content: "\2610"; position: absolute; left: 0; color: var(--muted); }
+.checks li.on::before { content: "\2612"; color: var(--fg); }
+footer { margin-top: var(--s-10); padding-top: var(--s-5); border-top: 1px solid var(--line); color: var(--muted); font-size: var(--t--1); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>mcp-legibility</h1>
+  <p class="lede">Can an agent that knows nothing about your system use it correctly on the first try? This tool finds out by running one.</p>
+  <nav>
+    <a href="#why">Why</a>
+    <a href="#method">Method</a>
+    <a href="#example">Example report</a>
+    <a href="#install">Install and run</a>
+    <a href="https://github.com/DMG-Venture-Studio/mcp-legibility">Source</a>
+  </nav>
+</header>
+
+<section id="why">
+  <h2>Why inspection is not enough</h2>
+  <p>An MCP server ships with documentation, and almost none of it reaches the agents that connect to it. Skills, READMEs, and contracts live in a repository. A remote client sees the protocol and nothing else: an <code>initialize</code> payload, a list of tools, whatever resources the server chooses to serve. So the better the documentation, the more confident the author, and the worse the surprise when a headless agent misuses a tool that was, to the author, clearly explained.</p>
+  <p>The author cannot see this failure, because the author cannot un-know the domain. The docstring reads fine to them. A linter cannot see it either. It can confirm that a tool has a description; it cannot tell you that the description's first line is the entire onboarding a remote caller will ever receive, or that one boolean parameter silently makes a write unreadable.</p>
+  <p>So this tool does not grade prose. It puts a real agent with no context in front of the server, gives it a task, and reads what the agent did. The number that comes out is called <strong>Prior</strong>: how much the agent had to already know to succeed. The optimum is zero.</p>
+</section>
+
+<section id="method">
+  <h2>The method</h2>
+  <p>Five axes, each scored 0 to 4. Four are levers. The fifth is the outcome, and it runs the other way: lower is better.</p>
+  <table>
+    <thead><tr><th>Axis</th><th>The question</th><th>Optimum</th></tr></thead>
+    <tbody>
+      <tr><td>Connect</td><td>What does a cold client receive before it acts?</td><td>An instructions block with an entry point</td></tr>
+      <tr><td>Errors</td><td>Do failures teach the next call, or drop the stream?</td><td>Typed, actionable, self-correcting</td></tr>
+      <tr><td>Workflow</td><td>Can the steps be run out of order?</td><td>Order is enforced, not merely documented</td></tr>
+      <tr><td>Disclosure</td><td>Is there a thin front door that points deeper?</td><td>Progressive: not a wall, not a void</td></tr>
+      <tr><td><strong>Prior</strong></td><td><strong>How much must the agent already know?</strong></td><td><strong>Zero</strong></td></tr>
+    </tbody>
+  </table>
+  <p>A Prior of 4 means the agent completed the task wrongly while reporting success. That is the worst outcome in the rubric, worse than an outright failure, because nothing downstream knows it happened.</p>
+
+  <h3>Three steps</h3>
+  <p><strong>1. Connect snapshot.</strong> Reads the server source and reports what a client receives on <code>initialize</code> and <code>tools/list</code>: the instructions block or its absence, the tools in registration order, resources, providers, and how many lines of explanation sit in a module docstring that never crosses the wire. Static, free, no credentials, no running server.</p>
+  <p><strong>2. Repo inventory.</strong> Lists the skills and guidance the repository holds, the workflow order they claim in prose, and how much of it a remote caller can reach. A workflow that lives only in a skill file is not a workflow for a caller who never reads skill files, which is every remote client.</p>
+  <p><strong>3. Headless trial.</strong> Spawns <code>claude -p</code> with only the target server attached, file and shell tools disallowed, and a strict MCP config, so the agent cannot read the repository. That isolation is the experiment: a remote caller cannot read your skills either, and the gap between the two situations is what the audit measures. The trial runs against a copy of any state in a temp directory. It spends money, because a real agent runs, and nothing in the tool runs it silently.</p>
+  <p>The transcript is then read for five tells: the agent guessed a value the server never offered; it stalled on something it could not discover; it succeeded by accident; it invented a fact and reported it confidently; it hit an error and could not recover. Scoring is a judgement against the rubric's described levels, not arithmetic. There is deliberately no script that averages five judgement calls into a number.</p>
+
+  <h3>What the static half sees</h3>
+  <p class="muted">The connect snapshot of this tool's own server, run on the repository as published.</p>
+<pre>=== what a cold client receives from mcp/server.py ===
+
+initialize:
+  serverInfo.name : 'legibility'
+  version         : '0.1.0'
+  instructions    : 'Audits an MCP server and its repository for legibility on
+                     connect ... Start with audit_repo(path) for everything at
+                     once ... This server does NOT run the headless trial ...'
+
+tools/list (4, in registration order):
+  connect_snapshot   What a cold MCP client receives from the server in `repo`
+  repo_inventory     Skills, supporting files, cross-links and stated workflow ordering
+  audit_repo         Both static halves at once, with the findings merged
+  trial_command      The exact command that runs the headless trial. Returned, never executed.
+
+resources: 0   prompts: 0
+providers:  ["SkillsDirectoryProvider(roots=ROOT / 'skills')"]
+
+=== findings (connect axis) ===
+  1. OK: a skills provider is declared, so this repo's skills ARE reachable over the wire.
+  2. FIRST TOOL IN REGISTRATION ORDER is `connect_snapshot` ...</pre>
+</section>
+
+<section id="example">
+  <h2>Example report</h2>
+  <p>A real audit from 4 September 2026, run with the headless trial, against an internal recruiting-match server. Same day, the same agent was put in front of this tool's own server. Both reports are in the repository under <code>skills/legibility-audit/examples/</code>; the first is rendered here.</p>
+
+  <div class="report">
+    <h3>Legibility audit: recruiting-match server</h3>
+    <p class="muted">Trial run: yes. <code>claude -p</code>, sonnet, 11 turns.</p>
+
+    <p><span class="score">Prior 3</span></p>
+    <p>The trial agent said it, unprompted, about its own work:</p>
+    <blockquote>I got there via a noise-level exploratory ranking that happened to agree with the real answer. That's a lucky corroboration on a 3-role pool, not a demonstrated method.</blockquote>
+    <p>That is the third tell, succeeded by accident, self-reported. Not a 4 only because it did not report success falsely: it caught itself. What let it catch itself is under "what already works".</p>
+
+    <table>
+      <thead><tr><th>Axis</th><th>Score</th><th>The one change that raises it</th></tr></thead>
+      <tbody>
+        <tr><td>Connect</td><td>0</td><td>Add <code>instructions=</code>. One parameter.</td></tr>
+        <tr><td>Errors</td><td>3</td><td>Refusals already name the side, the id, the directory and the count, and the agent acted on them.</td></tr>
+        <tr><td>Workflow</td><td>2</td><td>Order is discoverable only by reading all nine descriptions first.</td></tr>
+        <tr><td>Disclosure</td><td>0</td><td>32 files of guidance in the repo; a remote caller reaches none.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>What the cold client receives</h3>
+<pre>initialize:  serverInfo.name = 'recruiting-match'   version = None   instructions = None
+tools/list:  9 tools.  resources: 0   prompts: 0   providers: none
+not on the wire: a 28-line module docstring</pre>
+    <p>The first thing an agent ever reads about this system is the first tool in registration order: <em>"Candidate to roles: rank the JD pool against a candidate profile (full JSON as a string)."</em> Read that knowing nothing. It does not say the pool may be fixtures, that the profile must be supplied because nothing will give it to you, or that one write has a trap.</p>
+
+    <h3>What the repo holds that the wire does not carry</h3>
+    <p>Five skills, 32 files of guidance, none reachable. Including a skill written specifically for headless agents driving this service, visible to everyone except headless agents driving this service.</p>
+
+    <h3>The trial</h3>
+    <p><strong>Task, with no domain context:</strong> work out who is on the bench, find the best-matching role, record the float, and report how much to trust it.</p>
+    <ul class="checks">
+      <li class="on"><strong>Guessed a value the server never offered.</strong> No tool returns record text, so it ranked on a placeholder query and got a score of 0.195, which is noise.</li>
+      <li class="on"><strong>Stalled on something it could not discover.</strong> "There's no tool that lists bench records directly." It enumerated the bench by ranking against a throwaway job description and reading the ids out of the result. Discovery by side effect.</li>
+      <li class="on"><strong>Succeeded by accident.</strong> See Prior.</li>
+      <li>Invented a fact and reported it confidently. Did not happen, and that is a finding below.</li>
+      <li>Could not recover from an error. Recovered from every refusal it hit.</li>
+    </ul>
+
+    <h3>Findings, worst first</h3>
+    <ol>
+      <li><strong>There is no way to read a record, and the primary tool requires one.</strong> The ranking tool takes a whole profile as JSON; nothing returns one. A remote caller cannot rank honestly. This is a missing capability, not a missing explanation, and no instructions block fixes it. Fix: a getter and a lister.</li>
+      <li><strong>No instructions block.</strong> The entire onboarding is nine tool descriptions in registration order. Fix: the template in the repository, and it must state finding 1 until finding 1 is fixed.</li>
+      <li><strong>32 files of guidance, none reachable.</strong> Fix: serve the skills as resources. The default mode preserves the front-door-then-depth shape over the wire.</li>
+      <li><strong>Bench enumeration only via side effect.</strong> Closed by finding 1.</li>
+    </ol>
+
+    <h3>What already works</h3>
+    <p>The trial is as strong on this side, and these are the parts a refactor would quietly remove. The warnings list in the payload was read and passed on: the agent told its reader that all three pool entries were test fixtures and not to act as if a real requisition existed. The calibration tool refused to let a bad ranking stand, and the agent downgraded its own claim on the strength of it. The listed write path recomputed its own score rather than trusting the caller's number.</p>
+    <p><strong>The lesson across all three: every save came from a fact in the response body.</strong> Nothing was saved by documentation. That is the whole case for the instructions block and for serving the skills: the same channel, one step earlier.</p>
+  </div>
+
+  <h3>The A/B, same day</h3>
+  <p>The same harness, the same model, the same task shape, against two servers. The only variable is the surface.</p>
+  <table>
+    <thead><tr><th></th><th>Recruiting-match server</th><th>This tool's own server</th></tr></thead>
+    <tbody>
+      <tr><td>Prior</td><td>3</td><td>0</td></tr>
+      <tr><td>Turns</td><td>11</td><td>5</td></tr>
+      <tr><td>Instructions block</td><td>absent</td><td>present, with an entry point</td></tr>
+      <tr><td>Skills over the wire</td><td>0 of 32 files</td><td>all, served as resources</td></tr>
+      <tr><td>Outcome</td><td>right answer, wrong method, self-caught</td><td>right answer, calibrated confidence</td></tr>
+    </tbody>
+  </table>
+  <p>The legible surface took less than half the turns. Legibility is not only a correctness property; the agent spent six extra turns on the illegible server working out what it was looking at. On the legible one, it separated inspected fact from its own judgement without being asked, and surfaced the caveat that makes the method honest, quoting a source it could only have got over the wire:</p>
+  <blockquote>I did not run the headless trial, so I have no evidence of what an agent actually does when it hits this gap. The server's own instructions are explicit that a report without a trial is a lint, not evidence.</blockquote>
+  <p>That sentence is in the instructions block. It crossed the wire, the agent read it, and it changed what the agent claimed.</p>
+</section>
+
+<section id="install">
+  <h2>Install and run</h2>
+  <p>As a Claude Code plugin, which gives you the <code>/legibility-audit</code> skill and an MCP server exposing the static half as tools:</p>
+<pre>/plugin marketplace add DMG-Venture-Studio/mcp-legibility
+/plugin install mcp-legibility</pre>
+  <p>Then, inside Claude Code:</p>
+<pre>/legibility-audit                      # audit the repo you are in
+/legibility-audit --target &lt;path&gt;      # audit another repo
+/legibility-audit --no-headless        # static only, spends nothing</pre>
+  <p>Or clone the repository and run the scripts directly. Each declares its own dependencies inline, so <code>uv run --script</code> is the whole setup. Python 3.11 or later.</p>
+<pre>uv run --script skills/legibility-audit/scripts/probe_connect.py --repo &lt;path&gt;
+uv run --script skills/legibility-audit/scripts/inventory_repo.py --repo &lt;path&gt;
+uv run --script skills/legibility-audit/scripts/headless_trial.py --repo &lt;path&gt; --task "&lt;what to do&gt;"
+uv run --script mcp/server.py --selftest       # the server audits its own repository</pre>
+  <p>A report without the trial is a lint, and the report says so. The trial is the only step that produces evidence rather than opinion.</p>
+
+  <h3>Built on FastMCP's own mechanisms</h3>
+  <p>The fixes the audit recommends are all things FastMCP already provides: an <code>instructions=</code> parameter that rides the initialize response, a skills provider that serves a repository's skills as resources with progressive disclosure by default, typed errors and an error-handling middleware so failures reach the agent as sentences rather than dropped streams. The reference in the repository lists each mechanism and what it buys a cold caller.</p>
+</section>
+
+<footer>
+  <p>A DMG Labs project. <a href="https://github.com/DMG-Venture-Studio/mcp-legibility">Source on GitHub.</a> License to be decided by the studio.</p>
+</footer>
+
+</div>
+</body>
+</html>

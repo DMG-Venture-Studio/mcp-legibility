@@ -1,0 +1,62 @@
+/* DMG design tokens, colors and type only, copied from the site stylesheet. */
+:root {
+  /* Base colors */
+  --c-white: #FFFFFF;
+  --c-black: #0E0E10;
+  --c-cobalt: #1F3FCF;
+  --c-signal: #C2361F;
+
+  /* Black scale (tints toward white) */
+  --c-black-90: #26262A;
+  --c-black-70: #4E4F55;
+  --c-black-50: #6B6E76;
+  --c-black-30: #A8AAB0;
+  --c-black-15: #D4D5D9;
+  --c-black-8:  #E4E5E9;
+  --c-black-4:  #F2F2F4;
+
+  /* Cobalt scale */
+  --c-cobalt-120: #172FA0;
+  --c-cobalt-10:  #E9ECFA;
+
+  /* Signal scale */
+  --c-signal-10: #F9E9E5;
+
+  /* Roles */
+  --bg: var(--c-white);
+  --fg: var(--c-black);
+  --muted: var(--c-black-50);
+  --line: var(--c-black-8);
+  --surface: var(--c-black-4);
+  --accent: var(--c-cobalt);
+  --accent-strong: var(--c-cobalt-120);
+  --fail: var(--c-signal);
+
+  /* Type */
+  --f-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Fluid type scale, ratio 1.333 */
+  --t-base: clamp(1rem, 0.94rem + 0.3vw, 1.125rem);
+  --t--1: calc(var(--t-base) / 1.333);
+  --t-0:  var(--t-base);
+  --t-1:  calc(var(--t-base) * 1.333);
+  --t-2:  calc(var(--t-base) * 1.777);
+  --t-3:  calc(var(--t-base) * 2.369);
+  --t-4:  calc(var(--t-base) * 3.157);
+  --t-5:  calc(var(--t-base) * 4.209);
+}
+
+/* Night theme for the whole page. Set data-theme="night" on <html>. Same cobalt for controls;
+   links and hover use a cobalt tint that stays legible on the dark page. */
+:root[data-theme="night"] {
+  --bg: #0E0E10;
+  --fg: #E8E8E6;
+  --muted: #9A9DA2;
+  --line: #2A2B2F;
+  --surface: #1A1B1D;
+  --accent: #7B8FFF;
+  --accent-strong: #A7B4FF;
+  color-scheme: dark;
+}

@@ -1,8 +1,8 @@
 {
   "name": "mcp-legibility",
   "owner": {
-    "name": "Matt Fili",
-    "url": "https://github.com/mattfili"
+    "name": "DMG",
+    "url": "https://github.com/DMG-Venture-Studio"
   },
   "metadata": {
     "description": "Single-plugin marketplace for mcp-legibility.",
@@ -15,7 +15,8 @@
       "description": "Audit an MCP server and its repository for legibility on connect: what a cold agent receives, whether errors teach, whether workflows can be run out of order, how much progressive disclosure exists, and how much domain knowledge an agent must already hold. Runs a real headless agent against the target rather than inspecting it.",
       "version": "0.1.0",
       "author": {
-        "name": "Matt Fili"
+        "name": "DMG",
+        "url": "https://github.com/DMG-Venture-Studio"
       },
       "keywords": [
         "mcp",
